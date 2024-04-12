@@ -1,0 +1,249 @@
+---
+title: "Empowerment Unveiled: A Global Exploration of Gender Inequality with the Social Institutions and Gender Index"
+author: "Jake Duffy"
+date: "04-04-2024"
+format: 
+  html:
+    theme: cosmo
+    backgroundcolor: turquoise
+    toc: true
+    include-before: |
+      <style>
+        .blue { color: blue; }
+        .white { color: white; }
+      </style>
+execute: 
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+# libraries
+library(patchwork)
+library(ggplot2)
+library(plotly)
+library(sf)
+library(dplyr)
+library(cowplot)
+library(scales)
+library(readr)
+# data
+
+unicef_metadata_quarto_2019 <- read.csv("unicef_metadata_quarto_2019.csv")
+unicef_indicator_2 <- read.csv("unicef_indicator_2.csv")
+unicef_metadata_continent_r <- read.csv("unicef_metadata_continent_r.csv")
+
+# transformations
+
+data_join <- full_join(unicef_metadata_quarto_2019, unicef_indicator_2, by = c("country", "alpha_2_code", "alpha_3_code", "numeric_code", "year" = "time_period"))
+
+```
+
+## [***Introduction***]{.underline}
+
+This report will explore, in detail, the [**Social Institutions and Gender Index (SIGI)**]{.blue}. This indicator developed by the [**OECD**]{.blue} is a comprehensive measure designed to capture and quantify gender inequalities embedded in social institutions. The index evaluates various aspects such as discrimination in family code, physical integrity, and civil liberties, offering a multifaceted view of gender bias.
+
+This report provides a [**comparative analysis of the SIGI across different regions**]{.blue}, highlighting how geographical and cultural distinctions impact gender equality. Furthermore, I explore the relationship between the SIGI and key economic factors such as [**GDP per capita, GNI, Inflation, and Life Expectancy.**]{.blue} This analysis aims to uncover how economic development correlates with gender equality, offering a nuanced understanding of the interplay between economic conditions and social institutions' role in shaping gender dynamics.
+
+
+## [***Global Map of SIGI Values***]{.underline}
+
+```{r}
+#| fig-cap: " This visualisation displays a breakdown of the SIGI Index around the world. It demonstrates which areas of the world experience higher/ lower levels of gender inequality."
+
+map_world <- map_data("world")
+
+map_data_join <- full_join(data_join, map_world, by = c("country" = "region"))
+
+
+ggplot(map_data_join, aes(x = long, y = lat, group = group, fill = obs_value)) +
+  geom_polygon(color = "white") + 
+  scale_fill_viridis_c(name = "SIGI Value(%)") + 
+  theme_minimal() + 
+  labs(x = NULL, y = NULL, fill = "SIGI Value") + 
+  coord_fixed(1.3) +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        panel.background = element_blank(), 
+        axis.text = element_blank(), 
+        axis.ticks = element_blank())
+```
+
+This global map effectively displays the [**dispersion of SIGI values around the world.**]{.blue} It clearly outlines the areas with higher SIGI values and those with lower SIGI values. At first glance, it seems that countries in more developed parts of the world, such as North America, South America, Europe, and Oceania have low SIGI values and that countries and territories in Africa and Asia have got higher SIGI values.
+
+-   Countries with a [**lower SIGI Value are displayed in a darker colour**]{.blue}. These countries exhibit more progressive social institutions that tend to support gender equality, offering women and girls better access to rights, resources and liberties.
+
+-   Countries with [**moderate levels of gender inequality**]{.blue} may have made significant strides towards equality but certain social institutions and practices still perpetuate gender disparities.
+
+-   Countries with the [**highest SIGI Values are displayed in brighter colours**]{.blue}, these countries have got the highest level of gender inequality. In these regions, deeply ingrained social institutions significantly hinder women's and girls' rights and opportunities.
+
+## [***Regional Comparison***]{.underline}
+
+```{r}
+#| fig-cap: " The above bar charts show the average SIGI Value (left) and the average GDP Per Capita (right) of each continent."
+
+data_join <- filter(data_join, !is.na(Continent) & Continent != "Africa" & Continent != "Asia" & Continent != "Europe" & Continent != "North America" & Continent != "Oceania" & Continent != "South America")
+
+averages <- data_join %>%
+  group_by(Continent) %>%
+  summarise(average_obs_value = mean(obs_value, na.rm = TRUE))
+
+bc1 <- ggplot(averages, aes(x = Continent, y = average_obs_value, fill = Continent)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1") +
+  theme_minimal() +
+  labs(
+    x = "Continent",
+    y = "SIGI Index (%)") +
+  theme(axis.text.x = element_blank(),
+        legend.position = c(0.8,0.88))
+
+
+averagesGDP <- data_join %>%
+  group_by(Continent) %>%
+  summarise(average_gdpPercap = mean(gdpPercap, na.rm = TRUE))
+
+bc2 <- ggplot(averagesGDP, aes(x = Continent,y = average_gdpPercap, fill = Continent)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  scale_fill_brewer(palette = "Set1") +
+  theme_minimal() +
+  labs(
+    x = "Continent",
+    y = "GDP Per Capita (USD)") +
+  theme(axis.text.x = element_blank())
+
+bc1 + bc2 + plot_layout(ncol = 2)
+```
+
+Countries with [**lower GDP per capita tend to have higher SIGI**]{.blue} scores, indicating greater discrimination against women in social institutions. As countries become economically developed, they often invest more in social services, education, and health, contributing to a more equitable society.
+
+This relationship [**varies significantly across different continents and regions.**]{.blue} Countries in the same region with similar economic levels may show different SIGI values due to cultural, legal, and historical differences affecting gender equality.
+
+## [***SIGI Impact Assessment***]{.underline}
+
+### **SIGI VS GDP Per Cap (Left) & SIGI VS GNI in Billions (Right)**
+
+```{r}
+#| fig-cap: "The above impact assessments displays the relationship between a country's SIGI value (Y Axis) and their GDP (Left X Axis) and GNI (Right X Axis)."
+
+ttscatter1 <- ggplot(data_join, aes(x = gdpPercap, y = obs_value, color = Continent, size = Population)) +
+  geom_point(alpha = 0.6) +
+  scale_color_brewer(palette = "Set1") +
+  labs(x = "GDP Per Capita (USD)", y = "SIGI Index (%)") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_y_continuous(labels = scales::unit_format(unit = "%")) +
+  scale_x_continuous(
+    limits = c(0, 100000), 
+    labels = scales::unit_format(unit = "$"),
+    )
+
+
+
+ttscatter10 <- ggplotly(ttscatter1, tooltip = c("x", "y", "color", "size", "text")) %>%
+  layout(hoverlabel = list(bgcolor = "white"))
+
+ttscatter2 <- ggplot(data_join, aes(x = GNI / 1e+9, y = obs_value, color = Continent, size = Population)) +
+  geom_point(alpha = 0.6) +
+  scale_color_brewer(palette = "Set1") +
+  labs(x = "GNI (in Billions USD)", y = "SIGI Index (%)") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_y_continuous(labels = scales::unit_format(unit = "%")) +
+  scale_x_continuous(
+    limits = c(0, 6000),
+    labels = scales::unit_format(unit = "$"))
+
+
+
+ttscatter20 <- ggplotly(ttscatter2, tooltip = c("x", "y", "color", "size", "text")) %>%
+  layout(hoverlabel = list(bgcolor = "white"))
+
+subplot(ttscatter10, ttscatter20, nrows = 1, margin = 0.05)
+
+
+
+```
+
+The above scatter plots illustrate an interesting correlation between a country’s GDP and GNI and its SIGI value. Countries with [**higher GDP and GNIs tend to exhibit lower SIGI values**]{.blue}, which suggests that greater economic prosperity may be associated with more favourable social institutions and gender equality. This could indicate that wealthier nations have more resources to invest in policies and programmes that promote gender equality. This pattern underscores the potential [**benefits of economic prosperity in enhancing social and gender reforms.**]{.blue}
+
+\
+
+### **SIGI VS Life Expectancy (Left) & SIGI VS Inflation (Right)**
+
+```{r}
+#| fig-cap: "The above impact assessments displays the relationship between a country's SIGI value (Y Axis) and their average life expectancy (Left X Axis) and inflation (Right X Axis)."
+
+# Scatter Plot 3 Life Exp VS SIGI
+
+
+ttscatter3 <- ggplot(data_join, aes(x = LifeExp, y = obs_value, color = Continent, size = Population)) +
+  geom_point(alpha = 0.6) +
+  scale_color_brewer(palette = "Set1") +
+  labs(x = "Life Expectancy (Years)", y = "SIGI Index (%)") +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::unit_format(unit = "%")) +
+  scale_x_continuous(labels = scales::unit_format(unit = "Yrs")) +
+  theme(legend.position = "none")
+
+
+ttscatter30 <- ggplotly(ttscatter3, tooltip = c("x", "y", "color", "size", "text")) %>%
+  layout(hoverlabel = list(bgcolor = "white"))
+
+# Scatter Plot 4 Inflation VS SIGI
+
+
+ttscatter4 <- ggplot(data_join, aes(x = Inflation, y = obs_value, color = Continent, size = Population)) +
+  geom_point(alpha = 0.6) +
+  scale_color_brewer(palette = "Set1") +
+  labs(x = "Inflation (%)", y = "SIGI Index (%)") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_y_continuous(labels = scales::unit_format(unit = "%")) +
+  scale_x_continuous(limits = c(0, 50),
+                     labels = scales::unit_format(unit = "%"))
+
+
+ttscatter40 <- ggplotly(ttscatter4, tooltip = c("x", "y", "color", "size", "text")) %>%
+  layout(hoverlabel = list(bgcolor = "white"))
+
+subplot(ttscatter30, ttscatter40, nrows = 1, margin = 0.05)
+
+```
+
+As opposed to GDP and GNI, there is [**no correlation to be seen between a country’s life expectancy or inflation rates and their SIGI value**.]{.blue} While it may be expected that improvements in gender equality and social institutions would lead to better health outcomes, such as increased life expectancy, the absence of correlation in these scatter plots shows that other variables play a bigger role in influencing life expectancy. Similarly, the lack of correlation between SIGI and inflation indicates that economic stability and price levels are influenced by factors that are not directly linked to the SIGI value of a country. [**This highlights the multidimensional nature of economic and social issues**]{.blue}, where certain outcomes may depend on a broader set of variables beyond gender equality and social institutional reform.
+
+## [***From Past to Future: An Economic Outlook***]{.underline}
+
+```{r}
+#| fig-cap: "This time series plot compares the average GDP per capita for Europe and Africa since 1980."
+ average_gdp_by_year_continent <- unicef_metadata_continent_r %>%
+   group_by(year, Continent) %>%
+   filter(year >= 1980 & year <= 2022) %>%
+   summarise(AverageGDP = mean(GDP, na.rm = TRUE)) %>%
+   filter(Continent %in% c("Europe", "Africa"))
+
+ timeseries2 <- ggplot(average_gdp_by_year_continent, aes(x = year, y = AverageGDP, color = Continent)) +
+   geom_line(linewidth=1.5) +
+   theme_minimal() + 
+   labs(
+        x = "Year",
+        y = "GDP Per Capita (USD)",
+        color = "Continent") +
+   scale_x_continuous(breaks = seq(1980, 2022, by = 5)) +
+   scale_y_continuous(labels = scales::unit_format(unit = "$")) +
+   scale_color_manual(values = c("Europe" = "green", "Africa" = "red"))
+
+ print(timeseries2) 
+```
+
+The time series analysis clearly illustrates that since 1980, the [**average GDP of European countries has shown a consistent upward trajectory**]{.blue}, contrasting sharply with the relatively [**stagnant GDP levels observed in African countries**]{.blue}. Although we only have the SIGI value data for 2019, it further emphasises this disparity, [**European countries exhibit significantly lower SIGI values compared to African countries**]{.blue}. This indicates a pronounced difference in gender equality and social institutions between the two regions, suggesting that Europe's economic growth may be bolstered by more equitable social policies, whereas Africa faces ongoing challenges that may be linked to higher levels of gender-based discrimination. In the future, [**if Africa’s GDP is to rise and follow a similar trajectory as Europe’s has, we could hopefully see the SIGI values of African countries decrease as a result.**]{.blue}
+
+## [***Conclusion***]{.underline}
+
+This report presents a comprehensive analysis of the [**Social Institutions and Gender Index**]{.blue}, across different global regions, [**emphasizing the interplay between gender inequality and key economic indicators.**]{.blue} While economic development as indicated by GDP per capita and GNI is a positive force towards reducing gender inequality in social institutions, it is clear that [**achieving gender equality requires a multifaceted approach.**]{.blue} Policies and programs aimed at promoting gender equality must tackle specific discriminatory practices and norms directly, beyond the efforts to improve economic conditions.
+
